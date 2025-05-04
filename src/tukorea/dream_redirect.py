@@ -1,91 +1,47 @@
-import os
-import time
-import logging
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from src.tukorea.base_crawler import BaseCrawler, handle_errors
+from src.tukorea.dorm_application import DormApplication
+from src.util.logger import get_logger
+
+logger = get_logger(__name__)
 
 
-class DreamRedirect:
+class DreamRedirect(BaseCrawler):
+    """
+    포털 로그인 후 통합정보시스템 탭으로 이동하고,
+    해당 탭에서 생활관 외박신청 조회 기능을 호출하는 클래스
+    """
+
     TARGET_PREFIX = "https://dream.tukorea.ac.kr/nx/"
-    TIMEOUT = 20
+    SELECTOR_MENU = (By.XPATH, "//a[@title=\"통합정보시스템\"]")
 
-    def __init__(self, driver):
-        if driver is None:
-            raise ValueError("WebDriver must be initialized before redirect")
-        self.driver = driver
-        self.logger = logging.getLogger(__name__)
+    @handle_errors()
+    def redirect(self):
+        """
+        메인 포털에서 통합정보시스템 이동 -> 외박신청 조회 기능 메서드 호출
+        """
 
-    def redirect(self) -> None:
-        self.logger.info("DreamRedirect 시도")
+        #TODO
+        # 로그 및 코드 최적화 예정
 
-        existing = set(self.driver.window_handles)
+        logger.info("[DreamRedirect] 시작")
+        wait = WebDriverWait(self.driver, self.timeout)
 
-        menu = WebDriverWait(self.driver, self.TIMEOUT).until(
-            EC.element_to_be_clickable((By.XPATH, "//a[@title='통합정보시스템']"))
-        )
-        menu.click()
-        WebDriverWait(self.driver, 10).until(
-            lambda d: len(d.window_handles) > len(existing)
-        )
+        original_handles = set(self.driver.window_handles)
 
-        new_win = (set(self.driver.window_handles) - existing).pop()
-        self.driver.switch_to.window(new_win)
+        logger.info("통합정보시스템 메뉴 클릭 대기 중...")
+        wait.until(EC.element_to_be_clickable(self.SELECTOR_MENU)).click()
 
-        start = time.time()
-        while time.time() - start < self.TIMEOUT:
-            if self.driver.current_url.startswith(self.TARGET_PREFIX):
-                self.logger.info(f"DreamRedirect 성공: {self.driver.current_url}")
-                break
-            time.sleep(1)
-        else:
-            raise RuntimeError("redirect timed out")
+        wait.until(lambda d: len(d.window_handles) > len(original_handles))
+        new_handle = (set(self.driver.window_handles) - original_handles).pop()
+        self.driver.switch_to.window(new_handle)
+        logger.info(f"새 탭으로 전환: {new_handle}")
 
-        self._click_nexacro_sequence()
+        wait.until(EC.url_contains(self.TARGET_PREFIX))
+        logger.info("Dream 시스템 로드 완료: %s", self.driver.current_url)
 
-    def _click_nexacro_sequence(self):
-
-        def simulate_click(el):
-
-            dir_here = os.path.dirname(os.path.realpath(__file__))
-            js_file = os.path.normpath(os.path.join(dir_here, '..', 'util', 'click_simulator.js'))
-            if not os.path.isfile(js_file):
-                raise FileNotFoundError(f"click_simulator.js not found at {js_file}")
-            with open(js_file, 'r', encoding='utf-8') as f:
-                js = f.read()
-            self.driver.execute_script(js, el)
-
-        first_id = 'mainframe_VFrameSet_TopFrame_form_mb_topMenu_MPA0001'
-        self.logger.info("1) 부속행정 대기 중…")
-        first_el = WebDriverWait(self.driver, self.TIMEOUT).until(
-            EC.presence_of_element_located((By.ID, first_id))
-        )
-        simulate_click(first_el)
-
-        self.logger.info("2) 생활관 대기 중…")
-        second_el = WebDriverWait(self.driver, self.TIMEOUT).until(lambda d:
-            next((el for el in d.find_elements(By.CSS_SELECTOR, "div")
-                  if el.text.strip() == "생활관"), None)
-        )
-        if not second_el:
-            raise RuntimeError("생활관 요소를 찾지 못했습니다")
-        simulate_click(second_el)
-
-        third_id = 'mainframe_VFrameSet_HFrameSet_leftFrame_form_grd_leftMenu_body_gridrow_10_cell_10_0'
-        self.logger.info("3) -외박신청 대기 중…")
-        third_el = WebDriverWait(self.driver, self.TIMEOUT).until(
-            EC.presence_of_element_located((By.ID, third_id))
-        )
-        simulate_click(third_el)
-
-        search_id = (
-            'mainframe_VFrameSet_HFrameSet_VFrameSet1_WorkFrame_Child_'
-            'MPB0022_form_div_Work_div_search_btn_search'
-        )
-        self.logger.info("4) 조회 버튼 대기 중…")
-        search_el = WebDriverWait(self.driver, self.TIMEOUT).until(
-            EC.presence_of_element_located((By.ID, search_id))
-        )
-        simulate_click(search_el)
-
-        self.logger.info("작업 완료")
+        logger.info("생활관 외박신청 조회 시작")
+        DormApplication(self.driver).search_applications()
+        logger.info("DreamRedirect 완료")

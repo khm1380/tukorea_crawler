@@ -1,18 +1,20 @@
-import logging
-from src.util.logger import configure_logging
 from src.util.env_config import load_config
+from src.util.logger import get_logger
 from src.tukorea.portal_login import PortalLogin
 from src.tukorea.dream_redirect import DreamRedirect
 
-configure_logging()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-try:
-    user_id, password = load_config()
 
-    with PortalLogin(user_id, password, headless=False, close_on_exit=False) as portal:
-        portal.login()
-        DreamRedirect(portal.driver).redirect()
+user_id, password, environment, headless = load_config()
+logger.info(f"애플리케이션 환경: {environment}, headless: {headless}")
+logger.info("🔍 크롤러 시작")
 
-except Exception:
-    logger.exception("error")
+# TODO
+"""
+별도 크롤링 기능들 추가 예정
+"""
+with PortalLogin(user_id, password, headless=headless) as portal:
+    portal.login()
+    DreamRedirect(portal.driver).redirect()
+
