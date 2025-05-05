@@ -2,7 +2,9 @@ name: Python Quality Checks
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   pull_request:
 
 jobs:
@@ -30,15 +32,27 @@ jobs:
           echo "TUKOREA_ID=${{ secrets.TUKOREA_ID }}"   >> .env
           echo "TUKOREA_PW=${{ secrets.TUKOREA_PW }}"   >> .env
           echo "ENVIRONMENT=${{ secrets.ENVIRONMENT }}" >> .env
-          echo "CRAWLER_LOG_LEVEL=${{ secrets.CRAWLER_LOG_LEVEL }}"   >> .env
-          echo "CRAWLER_LOG_FILE=${{ secrets.CRAWLER_LOG_FILE }}"     >> .env
+          echo "CRAWLER_LOG_LEVEL=${{ secrets.CRAWLER_LOG_LEVEL }}" >> .env
+          echo "CRAWLER_LOG_FILE=${{ secrets.CRAWLER_LOG_FILE }}"   >> .env
 
-      - name: Run isort
+      - name: Auto-format and sort imports
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "▶ Auto-format with isort & black"
+          isort .
+          black .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: apply isort & black fixes" || echo "No changes to commit"
+
+      - name: Run isort check
         run: |
           echo "▶ isort import sorting check"
           isort --check-only .
 
-      - name: Run Black
+      - name: Run Black check
         run: |
           echo "▶ Black formatting check"
           black --check .
