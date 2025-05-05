@@ -1,0 +1,49 @@
+name: Python Quality Checks
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  quality:
+    name: isort → black → flake8
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install isort black flake8
+
+      - name: Create .env from Secrets
+        run: |
+          echo "TUKOREA_ID=${{ secrets.TUKOREA_ID }}"   >> .env
+          echo "TUKOREA_PW=${{ secrets.TUKOREA_PW }}"   >> .env
+          echo "ENVIRONMENT=${{ secrets.ENVIRONMENT }}" >> .env
+          echo "CRAWLER_LOG_LEVEL=${{ secrets.CRAWLER_LOG_LEVEL }}"   >> .env
+          echo "CRAWLER_LOG_FILE=${{ secrets.CRAWLER_LOG_FILE }}"     >> .env
+
+      - name: Run isort
+        run: |
+          echo "▶ isort import sorting check"
+          isort --check-only .
+
+      - name: Run Black
+        run: |
+          echo "▶ Black formatting check"
+          black --check .
+
+      - name: Run Flake8
+        run: |
+          echo "▶ Flake8 linting"
+          flake8 .
